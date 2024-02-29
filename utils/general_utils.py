@@ -14,13 +14,23 @@ import sys
 from datetime import datetime
 import numpy as np
 import random
+import cv2
+import cupy as cp
 
 def inverse_sigmoid(x):
     return torch.log(x/(1-x))
 
-def PILtoTorch(pil_image, resolution):
-    resized_image_PIL = pil_image.resize(resolution)
-    resized_image = torch.from_numpy(np.array(resized_image_PIL)) / 255.0
+def raw2Torch(image, resolution): 
+    return 0
+
+def PILtoTorch(image, resolution):
+    ''' BASE APPROACH
+    resized_image = cv2.resize(image, resolution) / 65535.0).astype(np.float32)
+    '''
+
+    '''RAW APPROACH'''
+    resized_image = cv2.resize(image, resolution).astype(np.float32) # images were already normalised by image_utils.bilinear_demosaic()
+    resized_image = torch.from_numpy(resized_image)  # TODO: make normalisation more dynamic based on bit depth of image
     if len(resized_image.shape) == 3:
         return resized_image.permute(2, 0, 1)
     else:

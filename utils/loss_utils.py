@@ -13,11 +13,16 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 from math import exp
+import numpy as np
+from utils.image_utils import pixels_to_bayer_mask
 
-def l1_loss(network_output, gt):
+def l1_loss_mean(network_output, gt):
     return torch.abs((network_output - gt)).mean()
 
-def l2_loss(network_output, gt):
+def l1_loss(network_output, gt):
+    return torch.abs((network_output - gt))
+
+def l2_loss(network_output, gt): 
     return ((network_output - gt) ** 2).mean()
 
 def gaussian(window_size, sigma):
@@ -61,4 +66,34 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
         return ssim_map.mean()
     else:
         return ssim_map.mean(1).mean(1).mean(1)
+    
 
+
+''' RawSplats Loss Utils'''
+def huber_loss(render, gt, delta, weights):
+    l1_err = torch.abs(render - gt)
+    quad_loss = 0.5 * (l1_err ** 2)
+    linear_loss = delta * (l1_err - 0.5 * delta)
+
+    weighted_quad_loss = quad_loss * weights
+    weighted_linear_loss = linear_loss * weights
+    loss = (torch.where(l1_err <= delta, weighted_quad_loss, weighted_linear_loss)).mean()
+    return loss
+
+
+def loss_fn(render, gt, bayer_mask, opt):
+    # apply bayer mask to the ground truth
+
+    # bayer_mask = torch.from_numpy(bayer_mask)
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # bayer_mask = bayer_mask.to(device)
+
+
+
+    # gamma curve to weight errors in dark regions more
+    scaling_grad = 1. / (1e-3 + render.detach())
+    Ll1 = l1_loss(render, gt)
+    
+    loss = (1.0 - opt.lambda_dssim) * (Ll1 * scaling_grad).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+
+    return loss
