@@ -95,6 +95,6 @@ def loss_fn(render, gt, bayer_mask, opt):
     Ll1 = l1_loss(render, gt)
     loss_reg = Ll1 * scaling_grad
     
-    loss = (1.0 - opt.lambda_dssim) * (loss_reg * loss_weight).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+    loss = (1 - opt.lambda_dssim) * (Ll1.mean()) + opt.lambda_dssim * (loss_reg * loss_weight).mean()
 
     return loss

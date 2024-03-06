@@ -135,8 +135,8 @@ def loadRawImages(path_to_folder, downsample=True, img_idx=None):
     bayer_masks = {}
 
     # hard coded paqrams for quick testing
-    blackLevel = cp.array([[528]]) # need to be formatted like this to avoid overflows on certain rgb components at demosaic
-    whiteLevel = cp.array([[4095]])
+    blackLevel = cp.array([[528.0]]) # need to be formatted like this to avoid overflows on certain rgb components at demosaic
+    whiteLevel = cp.array([[4095.0]])
 
     image0 = None
     exifs = []
@@ -154,8 +154,10 @@ def loadRawImages(path_to_folder, downsample=True, img_idx=None):
         exifs.append(fetchEXIF(path))
 
         # load raw image
-        raw = cp.array(rawpy.imread(path).raw_image).astype(cp.uint16)
-        raw = ((raw - blackLevel) / (whiteLevel - blackLevel)).astype(cp.float32)
+        raw = cp.array(rawpy.imread(path).raw_image).astype(cp.float32)
+        raw = ((raw - blackLevel)/ (whiteLevel - blackLevel)).astype(cp.float32)
+        raw = cp.clip(raw, 0, 1)
+        
 
         # bilinear demosaic
         raw_demosaic = bilinear_demosaic(raw)
