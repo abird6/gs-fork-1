@@ -93,9 +93,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         bayer_mask = viewpoint_cam.bayer_mask
 
         # calculate loss
-        loss = loss_fn(image, gt_image, bayer_mask, opt)
+        #loss = loss_fn(image, gt_image, bayer_mask, opt)
+
+        Ll1 = l1_loss_mean(image, gt_image)
+        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
+
         total_loss.append(loss.item())
-        Ll1 = 0 # prevents undefined variable errors
+        #Ll1 = 0 # prevents undefined variable errors
 
         loss.backward()
 
@@ -225,12 +229,6 @@ if __name__ == "__main__":
 
     # create list to track loss
     total_loss = []
-
-    # Create an instance of your dataset
-    # dataset = MyDataset(args.source_path, args.images, args.eval, args.resolution)
-
-    # Define batch size
-    # batch_size = 32  # Adjust as per your memory constraints
 
     # Start GUI server, configure and run training
     network_gui.init(args.ip, args.port)
