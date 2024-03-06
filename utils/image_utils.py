@@ -17,6 +17,7 @@ import numpy as np
 from tqdm import tqdm
 import rawpy
 import cv2
+import sys 
 
 # constants
 _EXIF_KEYS = (
@@ -120,13 +121,14 @@ def bilinear_demosaic(bayer):
     return rgb
 
 
-def loadRawImages(path_to_folder, downsample=True):
+def loadRawImages(path_to_folder, downsample=True, img_idx=None):
     # prepare logger
     raw_dataset = []
     folder = os.listdir(path_to_folder)
     for file in folder:
         if file.endswith(".DNG") or file.endswith(".dng"):
             raw_dataset.append(file)
+
     progress = tqdm(len(raw_dataset), desc="Demosaicing and downscaling RAW Images...", unit="/" + str(len(raw_dataset)) + " images")
 
     raw_images = {}
@@ -135,7 +137,6 @@ def loadRawImages(path_to_folder, downsample=True):
     # hard coded paqrams for quick testing
     blackLevel = cp.array([[528]]) # need to be formatted like this to avoid overflows on certain rgb components at demosaic
     whiteLevel = cp.array([[4095]])
-    shutter_ratio = 0.005 / 0.05
 
     image0 = None
     exifs = []
@@ -144,20 +145,26 @@ def loadRawImages(path_to_folder, downsample=True):
     for i, raw_file in enumerate(raw_dataset):
         path = os.path.join(path_to_folder, raw_file)
 
+        if img_idx is not None and i != img_idx:
+            raw_images[path] = None
+            bayer_masks[path] = None
+            continue
+
         # fetch metadata
         exifs.append(fetchEXIF(path))
 
         # load raw image
         raw = cp.array(rawpy.imread(path).raw_image).astype(cp.uint16)
-        raw = ((raw - blackLevel) / (whiteLevel - blackLevel))
+        raw = ((raw - blackLevel) / (whiteLevel - blackLevel)).astype(cp.float32)
 
         # bilinear demosaic
         raw_demosaic = bilinear_demosaic(raw)
 
-        image0 = raw_demosaic if i == 0 else image0
+        image0 = raw_demosaic if i == 0 or img_idx is not None else image0
 
         # get bayer mask for image
-        bayer_mask = pixels_to_bayer_mask(raw_demosaic.shape[1], raw_demosaic.shape[0])
+        pix_x, pix_y = np.meshgrid(np.arange(raw_demosaic.shape[1]), np.arange(raw_demosaic.shape[0]))
+        bayer_mask = pixels_to_bayer_mask(pix_x, pix_y)
 
         if downsample:
             # resize image for memory management
@@ -167,12 +174,11 @@ def loadRawImages(path_to_folder, downsample=True):
             
 
             # resize bayer mask
-            #resolution = (int(bayer_mask.shape[1] / scale), int(bayer_mask.shape[0] / scale))
+            resolution = (int(bayer_mask.shape[1] / scale), int(bayer_mask.shape[0] / scale))
             bayer_mask = cv2.resize(bayer_mask, resolution)
 
-        raw_images[path] = raw_demosaic
+        raw_images[path] = cp.asnumpy(raw_demosaic)
         bayer_masks[path] = bayer_mask
-
 
         # update progress logger
         progress.update(1)

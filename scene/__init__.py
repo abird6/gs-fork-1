@@ -22,7 +22,7 @@ class Scene:
 
     gaussians : GaussianModel
 
-    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0]):
+    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0], img_render_idx=None):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -39,9 +39,9 @@ class Scene:
 
         self.train_cameras = {}
         self.test_cameras = {}
-
+    
         if os.path.exists(os.path.join(args.source_path, "sparse")):
-            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, args.resolution)
+            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, args.resolution, img_render_idx=img_render_idx)
             self.metadata = scene_info.metadata
         elif os.path.exists(os.path.join(args.source_path, "transforms_train.json")):
             print("Found transforms_train.json file, assuming Blender data set!")
@@ -71,9 +71,9 @@ class Scene:
 
         for resolution_scale in resolution_scales:
             print("Loading Training Cameras")
-            self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args)
+            self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args, img_idx=img_render_idx)
             print("Loading Test Cameras")
-            self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args)
+            self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args, img_idx=img_render_idx)
 
         if self.loaded_iter:
             self.gaussians.load_ply(os.path.join(self.model_path,
@@ -92,3 +92,18 @@ class Scene:
 
     def getTestCameras(self, scale=1.0):
         return self.test_cameras[scale]
+    
+    ''' RawSplats methods '''
+    # creates a new batch of cameras to be uploaded to cuda
+    def createCamBatch(self, batch_size, batch_idx=0, scale=1.0):
+        batch_end = batch_idx + batch_size
+        # if batch overflows training cam list, we roll back to start of list
+        if batch_end > len(self.train_cameras[scale]):
+            batch_end_idx = batch_end - len(self.train_cameras[scale]) - 1
+            return self.train_cameras[scale][batch_idx:] + self.train_cameras[scale][:batch_end_idx], batch_end_idx + 1
+        else:
+            return self.train_cameras[scale][batch_idx:batch_end], batch_end + 1
+        
+    def getRenderCam(self, scale=1.0):
+        return self.train_cameras[scale][0]
+        

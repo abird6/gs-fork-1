@@ -54,13 +54,14 @@ def loadCam(args, id, cam_info, resolution_scale):
     return Camera(colmap_id=cam_info.uid, R=cam_info.R, T=cam_info.T, 
                   FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
                   image=gt_image, gt_alpha_mask=loaded_mask,
-                  image_name=cam_info.image_name, uid=id,  bayer_mask=cam_info.mask, data_device=args.data_device)
+                  image_name=cam_info.image_name, uid=id,  bayer_mask=cam_info.mask, data_device=resized_image_rgb.device)
 
-def cameraList_from_camInfos(cam_infos, resolution_scale, args):
+def cameraList_from_camInfos(cam_infos, resolution_scale, args, img_idx=None):
     camera_list = []
 
     for id, c in enumerate(cam_infos):
-        camera_list.append(loadCam(args, id, c, resolution_scale))
+        if c.image is not None:
+            camera_list.append(loadCam(args, id, c, resolution_scale))
 
     return camera_list
 

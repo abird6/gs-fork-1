@@ -61,28 +61,24 @@ def post_process(img, blackLevel, whiteLevel, exposure, cam2rgb):
 
 
 def render_set(model_path, name, iteration, views, gaussians, pipeline, background, metadata = None, img_idx = 0):
-    renders = []
-    gt_images = [] 
 
-    for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        renders.append(render(view, gaussians, pipeline, background)["render"])
-        gt_images.append(view.original_image)
-    
-    rendered_img =  renders[img_idx].detach().cpu().permute(1, 2, 0)
+    rendered_img = render(views, gaussians, pipeline, background)["render"].detach().cpu().permute(1, 2, 0)
     rendered_img = rendered_img.numpy()
-    gt_img = gt_images[img_idx].detach().cpu().permute(1, 2, 0)
+    gt_img = views.original_image.detach().cpu().permute(1, 2, 0)
     gt_img = gt_img.numpy()
 
     # set arbitrary black and white levels for testing
     if metadata is not None:
         blackLevel = metadata['BlackLevel'].reshape(-1, 1, 1)
         whiteLevel = metadata['WhiteLevel'].reshape(-1, 1, 1)
-        render_post = post_process(rendered_img, blackLevel[img_idx], whiteLevel[img_idx], metadata['exposure'], metadata['cam2rgb'][img_idx])
-        gt_post = post_process(gt_img, blackLevel[img_idx], whiteLevel[img_idx], metadata['exposure'], metadata['cam2rgb'][img_idx])
+        render_post = post_process(rendered_img, blackLevel[0], whiteLevel[0], metadata['exposure'], metadata['cam2rgb'][0])
+        gt_post = post_process(gt_img, blackLevel[0], whiteLevel[0], metadata['exposure'], metadata['cam2rgb'][0])
 
         # display processed render and gt
         render_post = cv2.cvtColor(render_post, cv2.COLOR_BGR2RGB)
+        render_post = cv2.resize(render_post, (int(render_post.shape[1] / 2), int(render_post.shape[0] / 2)))
         gt_post = cv2.cvtColor(gt_post, cv2.COLOR_BGR2RGB)
+        gt_post = cv2.resize(gt_post, (int(gt_post.shape[1] / 2), int(gt_post.shape[0] / 2)))
         cv2.imshow('rendering', render_post)
         cv2.imshow('gt', gt_post)
         if cv2.waitKey(0) & 0xFF == ord('q'):
@@ -91,13 +87,13 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
 def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, img_idx : int):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
-        scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False)
+        scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False, img_render_idx=img_idx)
 
         bg_color = [1,1,1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
         if not skip_train:
-             render_set(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, scene.metadata, img_idx)
+             render_set(dataset.model_path, "train", scene.loaded_iter, scene.getRenderCam(), gaussians, pipeline, background, scene.metadata, img_idx)
 
         if not skip_test:
              render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, scene.metadata, img_idx)

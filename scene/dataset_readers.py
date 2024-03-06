@@ -105,7 +105,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, raw_images,
         image_path = os.path.join(images_folder, os.path.basename(extr.name)).split(".")[0] + ".DNG"
         image_name = os.path.basename(image_path).split(".")[0]
 
-        ''' RAWPY LOAD IMAGE'''
+        ''' RAWPY LOAD IMAGE '''
         # fetch raw image - from pre-loaded raw_images dictionary
         image = raw_images[image_path]
         bayer_mask = bayer_masks[image_path]
@@ -142,7 +142,7 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, resolution, llffhold=8):
+def readColmapSceneInfo(path, images, eval, resolution, llffhold=8, img_render_idx=None):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -156,9 +156,9 @@ def readColmapSceneInfo(path, images, eval, resolution, llffhold=8):
 
 
     # pre-load RAW images - we do this to prevent memory loading issues 
-    # we bilinear demosaic and resize the images to 1600 pixels width
+    # we bilinear demosaic and resize the images to 1600 pixels width if no resolution is specified
     # we return metadata for rendering/post-processing
-    raw_images, meta, bayer_masks = loadRawImages(images, resolution==-1)
+    raw_images, meta, bayer_masks = loadRawImages(images, resolution==-1, img_render_idx)
 
 
     reading_dir = "images" if images == None else images

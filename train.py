@@ -52,6 +52,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
+    batch_idx = 0
+
+    ''' Iterational Training Loop '''
     for iteration in range(first_iter, opt.iterations + 1):        
         if network_gui.conn == None:
             network_gui.try_connect()
@@ -76,9 +79,14 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if iteration % 1000 == 0:
             gaussians.oneupSHdegree()
 
-        # Pick a random Camera
+        # create a new batch of cameras
         if not viewpoint_stack:
-            viewpoint_stack = scene.getTrainCameras().copy()
+            viewpoint_stack, batch_idx = scene.createCamBatch(opt.batch_size, batch_idx=batch_idx)
+            
+            # upload all gt imags to gpu
+            for viewpoint in viewpoint_stack:
+                viewpoint.original_img_to_cuda("cuda:0")
+        
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
 
         # Render
@@ -89,7 +97,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-        gt_image = viewpoint_cam.original_image.cuda()
+        gt_image = viewpoint_cam.original_image.to("cuda:0")
         bayer_mask = viewpoint_cam.bayer_mask
 
         # calculate loss
@@ -100,6 +108,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         loss.backward()
 
         iter_end.record()
+
+        viewpoint_cam.original_img_to_cpu()
+
+
 
         with torch.no_grad():
             # Progress bar
@@ -122,7 +134,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
-                if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                if iteration > opt.densify_from_iter and not viewpoint_stack:
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     gaussians.densify_and_prune(opt.densify_grad_threshold, opt.min_opacity_thresh, scene.cameras_extent, size_threshold)
                 

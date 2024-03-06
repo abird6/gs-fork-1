@@ -83,17 +83,18 @@ def huber_loss(render, gt, delta, weights):
 
 def loss_fn(render, gt, bayer_mask, opt):
     # apply bayer mask to the ground truth
+    bayer_mask = torch.from_numpy(bayer_mask.astype(np.uint8)).permute(2, 0, 1)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    bayer_mask = bayer_mask.to(device)
 
-    # bayer_mask = torch.from_numpy(bayer_mask)
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # bayer_mask = bayer_mask.to(device)
-
+    loss_weight = torch.broadcast_to(bayer_mask, gt.shape)
 
 
     # gamma curve to weight errors in dark regions more
     scaling_grad = 1. / (1e-3 + render.detach())
     Ll1 = l1_loss(render, gt)
+    loss_reg = Ll1 * scaling_grad
     
-    loss = (1.0 - opt.lambda_dssim) * (Ll1 * scaling_grad).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+    loss = (1.0 - opt.lambda_dssim) * (loss_reg * loss_weight).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
 
     return loss

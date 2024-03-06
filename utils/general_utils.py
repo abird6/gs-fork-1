@@ -30,11 +30,12 @@ def PILtoTorch(image, resolution):
 
     '''RAW APPROACH'''
     resized_image = cv2.resize(image, resolution).astype(np.float32) # images were already normalised by image_utils.bilinear_demosaic()
-    resized_image = torch.from_numpy(resized_image)  # TODO: make normalisation more dynamic based on bit depth of image
-    if len(resized_image.shape) == 3:
-        return resized_image.permute(2, 0, 1)
+    tensor_cpu = torch.from_numpy(resized_image)  # TODO: make normalisation more dynamic based on bit depth of image
+    
+    if len(tensor_cpu.shape) == 3:
+        return tensor_cpu.permute(2, 0, 1)
     else:
-        return resized_image.unsqueeze(dim=-1).permute(2, 0, 1)
+        return tensor_cpu.unsqueeze(dim=-1).permute(2, 0, 1)
 
 def get_expon_lr_func(
     lr_init, lr_final, lr_delay_steps=0, lr_delay_mult=1.0, max_steps=1000000

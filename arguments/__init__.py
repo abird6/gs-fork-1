@@ -88,6 +88,10 @@ class OptimizationParams(ParamGroup):
         self.densify_grad_threshold = 0.0002
         self.min_opacity_thresh = 0.005
         self.random_background = False
+
+        # Rawsplat params
+        self.batch_size = 20
+
         super().__init__(parser, "Optimization Parameters")
 
 def get_combined_args(parser : ArgumentParser):
