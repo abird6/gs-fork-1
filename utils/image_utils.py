@@ -150,6 +150,7 @@ def loadRawImages(path_to_folder, downsample=True):
         # load raw image
         raw = cp.array(rawpy.imread(path).raw_image).astype(cp.uint16)
         raw = ((raw - blackLevel) / (whiteLevel - blackLevel))
+        raw = cp.clip(raw, 0, 1)
 
         # bilinear demosaic
         raw_demosaic = bilinear_demosaic(raw)
