@@ -80,20 +80,29 @@ def huber_loss(render, gt, delta, weights):
     loss = (torch.where(l1_err <= delta, weighted_quad_loss, weighted_linear_loss)).mean()
     return loss
 
+'''
+    Determines loss function to apply based on model's "loss_type" parameter.
+    Loss Fn types:
+        0: Original 3DGS loss
+        1: L1 loss w/ scaling gradient - adapted from RawNeRF
+        2: L1 loss w/ scaling gradient and bayer masking - adapted from RawNeRF
+'''
+def loss_fn(render, gt, bayer_mask, lp, opt):
+    loss = 0
 
-def loss_fn(render, gt, bayer_mask, opt):
-    # apply bayer mask to the ground truth
+    if lp.loss_type == 1:
+        # gamma curve to weight errors in dark regions more
+        scaling_grad = 1. / (1e-3 + render.detach())
+        Ll1 = l1_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * (Ll1 * scaling_grad).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
 
+    else:
+        Ll1 = l1_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * Ll1.mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+
+        
     # bayer_mask = torch.from_numpy(bayer_mask)
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # bayer_mask = bayer_mask.to(device)
-
-
-
-    # gamma curve to weight errors in dark regions more
-    scaling_grad = 1. / (1e-3 + render.detach())
-    Ll1 = l1_loss(render, gt)
-    
-    loss = (1.0 - opt.lambda_dssim) * Ll1.mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
 
     return loss
