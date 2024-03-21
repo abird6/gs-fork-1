@@ -23,7 +23,7 @@ def l1_loss(network_output, gt):
     return torch.abs((network_output - gt))
 
 def l2_loss(network_output, gt): 
-    return ((network_output - gt) ** 2).mean()
+    return ((network_output - gt) ** 2)
 
 def gaussian(window_size, sigma):
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
@@ -70,6 +70,8 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
 
 
 ''' RawSplats Loss Utils'''
+
+
 def huber_loss(render, gt, delta, weights):
     l1_err = torch.abs(render - gt)
     quad_loss = 0.5 * (l1_err ** 2)
@@ -83,26 +85,78 @@ def huber_loss(render, gt, delta, weights):
 '''
     Determines loss function to apply based on model's "loss_type" parameter.
     Loss Fn types:
-        0: Original 3DGS loss
-        1: L1 loss w/ scaling gradient - adapted from RawNeRF
-        2: L1 loss w/ scaling gradient and bayer masking - adapted from RawNeRF
+        0:  L - original 3DGS loss
+        1:  L1 loss w/ gamma curve - adapted from RawNeRF
+        2:  L1 loss w/ gamma curve and bayer masking - adapted from RawNeRF - only works on full res images
+        3:  L2 loss
+        4:  L2 loss w/ gamma curve - adapted from RawNeRF
+        5:  L2 loss w/ gamma curve and bayer masking - adapted from RawNeRF - only works on full res images
+        6:  Huber loss - more weight on fine errors
+        7:  L + L1 gamma curve weight (lambda)
+        8:  L + L2 gamma curve weight (lambda)
+        9:  L + L1 gamma curve weight + bayer mask (lambda)
+        10: L + L2 gamma curve weight + bayer mask (lambda)
+
 '''
 def loss_fn(render, gt, bayer_mask, lp, opt):
-    loss = 0
+    # convert bayer mask to tensor
+    bayer_mask = torch.from_numpy(bayer_mask)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    bayer_mask = bayer_mask.to(device)
+    
+    # gamma curve to weight errors in dark regions more
+    scaling_grad = 1. / (1e-3 + render.detach())
 
-    if lp.loss_type == 1:
-        # gamma curve to weight errors in dark regions more
-        scaling_grad = 1. / (1e-3 + render.detach())
+    if lp.loss_type == 1: # L1 w/ gamma curve
         Ll1 = l1_loss(render, gt)
         loss = (1.0 - opt.lambda_dssim) * (Ll1 * scaling_grad).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
 
-    else:
+    elif lp.loss_type == 2: # L1 w/ gamma curve and bayer masking
+        Ll1 = l1_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * (bayer_mask * (Ll1 * scaling_grad)).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+
+    elif lp.loss_type == 3: # L2
+        Ll2 = l2_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * Ll2.mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+
+    elif lp.loss_type == 4: # L2 w/ gamma curve
+        Ll2 = l2_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * (Ll2 * (scaling_grad**2)).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+
+    elif lp.loss_type == 5: # L2 w/ gamma curve and bayer masking
+        Ll2 = l2_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * (bayer_mask * (Ll2 * (scaling_grad**2))).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+
+    elif lp.loss_type == 6: # huber loss
+        loss = huber_loss(render, gt, delta=0.01, weights=0.8)
+
+    elif lp.loss_type == 7: # L + L1 gamma curve weight (lambda)
+        Ll1 = l1_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * (Ll1.mean()) + opt.lambda_dssim * (1.0 - ssim(render, gt)) + (1.0 - opt.lambda_dssim) * ((Ll1 * scaling_grad).mean())
+
+    elif lp.loss_type == 8: # L + L2 gamma curve weight (lambda)
+        Ll1 = l1_loss(render, gt)
+        Ll2 = l2_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * (Ll1.mean()) + opt.lambda_dssim * (1.0 - ssim(render, gt)) + (1.0 - opt.lambda_dssim) * ((Ll2 * (scaling_grad**2)).mean())
+
+    elif lp.loss_type == 9: # L + L1 gamma curve weight + bayer mask (lambda)
+        Ll1 = l1_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * (Ll1.mean()) + opt.lambda_dssim * (1.0 - ssim(render, gt)) + (1.0 - opt.lambda_dssim) * ((bayer_mask * (Ll1 * scaling_grad)).mean())
+
+    elif lp.loss_type == 10: # L + L2 gamma curve weight + bayer mask (lambda)
+        Ll1 = l1_loss(render, gt)
+        Ll2 = l2_loss(render, gt)
+        loss = (1.0 - opt.lambda_dssim) * (Ll1.mean()) + opt.lambda_dssim * (1.0 - ssim(render, gt)) + (1.0 - opt.lambda_dssim) * ((bayer_mask * (Ll2 * (scaling_grad**2))).mean())
+
+    elif lp.loss_type == 11: # gamma correction loss
+        loss = ((l1_loss(render, gt) / (1e-7 + torch.abs(render + gt)))**(1/2.2)).mean()
+
+    elif lp.loss_type == 12: # gamma correction loss w/ ssim
+        loss = ((1.0 - opt.lambda_dssim) * ((l1_loss(render, gt) / (torch.abs(render.detach() + gt)))**(1/2.2)).mean()) + (opt.lambda_dssim * (1.0 - ssim(render, gt)))
+
+    else: # original 3DGS loss
         Ll1 = l1_loss(render, gt)
         loss = (1.0 - opt.lambda_dssim) * Ll1.mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
 
         
-    # bayer_mask = torch.from_numpy(bayer_mask)
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # bayer_mask = bayer_mask.to(device)
-
     return loss

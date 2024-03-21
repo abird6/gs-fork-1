@@ -77,7 +77,7 @@ class OptimizationParams(ParamGroup):
         self.position_lr_delay_mult = 0.01
         self.position_lr_max_steps = 30_000
         self.feature_lr = 0.0025
-        self.opacity_lr = 0.01
+        self.opacity_lr = 0.05
         self.scaling_lr = 0.005
         self.rotation_lr = 0.001
         self.percent_dense = 0.01
@@ -105,7 +105,8 @@ def get_combined_args(parser : ArgumentParser):
     except TypeError:
         print("Config file not found at")
         pass
-    args_cfgfile = eval(cfgfile_string)
+    cfgfile_arr = cfgfile_string.split("\n")
+    args_cfgfile = eval(cfgfile_arr[0])
 
     merged_dict = vars(args_cfgfile).copy()
     for k,v in vars(args_cmdline).items():

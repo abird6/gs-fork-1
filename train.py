@@ -160,8 +160,8 @@ def prepare_output_and_logger(lp, opt, pp):
     os.makedirs(lp.model_path, exist_ok = True)
     with open(os.path.join(lp.model_path, "cfg_args"), 'w') as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(lp))))
-        cfg_log_f.write(str(Namespace(**vars(opt))))
-        cfg_log_f.write(str(Namespace(**vars(pp))))
+        cfg_log_f.write("\n" + str(Namespace(**vars(opt))))
+        cfg_log_f.write("\n" + str(Namespace(**vars(pp))))
 
     # Create Tensorboard writer
     tb_writer = None
@@ -189,6 +189,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
             if config['cameras'] and len(config['cameras']) > 0:
                 l1_test = 0.0
                 psnr_test = 0.0
+                ssim_test = 0.0
                 for idx, viewpoint in enumerate(config['cameras']):
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
@@ -225,7 +226,7 @@ if __name__ == "__main__":
     parser.add_argument('--debug_from', type=int, default=-1)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
     parser.add_argument("--test_iterations", nargs="+", type=int, default=[7_000, 30_000])
-    parser.add_argument("--test_interval", nargs="+", type=int, default=0)
+    parser.add_argument("--test_interval", type=int, default=0)
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
@@ -234,7 +235,7 @@ if __name__ == "__main__":
     args.save_iterations.append(args.iterations)
 
     if args.test_interval != 0:
-        args.test_iterations = list(range(args.test_interval, args.iterations, args.test_interval))
+        args.test_iterations = list(range(args.test_interval, args.iterations + args.test_interval, args.test_interval))
     
     print("Optimizing " + args.model_path)
 
