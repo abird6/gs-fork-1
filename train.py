@@ -37,7 +37,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset, opt, pipe)
     gaussians = GaussianModel(dataset.sh_degree)
-    scene = Scene(dataset, gaussians)
+    scene = Scene(dataset, gaussians, opt)
     gaussians.training_setup(opt)
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
@@ -102,7 +102,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         bayer_mask = viewpoint_cam.bayer_mask
 
         # calculate loss
-        loss = loss_fn(image, gt_image, bayer_mask, dataset, opt)
+        loss = loss_fn(image, gt_image, bayer_mask, dataset, opt, iteration)
 
         # back propagation
         loss.backward()
@@ -236,6 +236,9 @@ if __name__ == "__main__":
 
     if args.test_interval != 0:
         args.test_iterations = list(range(args.test_interval, args.iterations + args.test_interval, args.test_interval))
+
+    if args.densification_interval == 'ds_size':
+        print("DS_SIZE")
     
     print("Optimizing " + args.model_path)
 

@@ -142,7 +142,7 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, resolution, llffhold=8):
+def readColmapSceneInfo(path, images, eval, resolution, opt, llffhold=8):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -159,6 +159,10 @@ def readColmapSceneInfo(path, images, eval, resolution, llffhold=8):
     # we bilinear demosaic and resize the images to 1600 pixels width
     # we return metadata for rendering/post-processing
     raw_images, meta, bayer_masks = loadRawImages(images, resolution==-1)
+
+    # set variable densification args (if applicable)
+    opt.densification_interval = len(raw_images) if opt.densification_interval == -1 else opt.densification_interval
+    opt.densify_from_iter = len(raw_images) if opt.densify_from_iter == -1 else opt.densify_from_iter
 
 
     reading_dir = "images" if images == None else images
