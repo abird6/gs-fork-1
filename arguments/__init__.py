@@ -88,6 +88,8 @@ class OptimizationParams(ParamGroup):
         self.densify_until_iter = 15_000
         self.densify_grad_threshold = 0.0002
         self.min_opacity_thresh = 0.005
+        self.huber_delta_thresh = 0.0002
+        self.huber_weight = 0.8
         self.random_background = False
         super().__init__(parser, "Optimization Parameters")
 

@@ -127,7 +127,7 @@ def loss_fn(render, gt, bayer_mask, lp, opt, iteration):
         loss = (1.0 - opt.lambda_dssim) * (bayer_mask * (Ll2 * (scaling_grad**2))).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
 
     elif lp.loss_type == 6: # huber loss
-        loss = huber_loss(render, gt, delta=0.0002, weight=0.7)
+        loss = huber_loss(render, gt, delta=opt.huber_delta_thresh, weight=opt.huber_weight)
 
     elif lp.loss_type == 7: # L + L1 gamma curve weight (lambda)
         Ll1 = l1_loss(render, gt)
