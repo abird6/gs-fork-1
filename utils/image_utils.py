@@ -243,3 +243,11 @@ def pixels_to_bayer_mask(pix_x, pix_y):
     return bayer_mask   
 
 
+def average_frames(images):
+    for i, key in enumerate(images.keys()):
+        if i == 0:
+            avg = np.zeros(images[key].shape, np.float32)
+
+        avg += images[key]
+    avg /= len(images)
+    return avg

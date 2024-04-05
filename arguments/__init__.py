@@ -53,8 +53,9 @@ class ModelParams(ParamGroup):
         self._resolution = -1
         self._white_background = False
         self.data_device = "cuda"
-        self.eval = True
+        self.eval = False
         self.loss_type = 0
+        self.avg_frames = 0
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):

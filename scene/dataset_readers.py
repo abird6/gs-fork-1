@@ -22,7 +22,7 @@ from pathlib import Path
 from plyfile import PlyData, PlyElement
 from utils.sh_utils import SH2RGB
 from scene.gaussian_model import BasicPointCloud
-from utils.image_utils import fetchEXIF, bilinear_demosaic, loadRawImages
+from utils.image_utils import fetchEXIF, bilinear_demosaic, loadRawImages, average_frames, pixels_to_bayer_mask
 import cv2
 import rawpy
 import cupy as cp
@@ -72,7 +72,7 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, raw_images, bayer_masks):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, raw_images, bayer_masks, avg=False):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write('\r')
@@ -107,8 +107,19 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, raw_images,
 
         ''' RAWPY LOAD IMAGE'''
         # fetch raw image - from pre-loaded raw_images dictionary
-        image = raw_images[image_path]
-        bayer_mask = bayer_masks[image_path]
+        if avg: # compute average frames from each viewpoint for high PSNR
+            # change image_path to point to the folder containing base images to be averaged
+            dataset_folder = images_folder.split('\\')[:-1]
+            dataset_folder = "\\".join(dataset_folder)
+            avg_images_folder = os.path.join(dataset_folder, "avg-in")
+            avg_img_src = os.path.join(avg_images_folder, image_name)
+            avg_img_src = os.path.join(avg_img_src, "raw")
+            avg_img_dict, _, _ = loadRawImages(avg_img_src)
+            image = average_frames(avg_img_dict)
+            bayer_mask = pixels_to_bayer_mask(image.shape[1], image.shape[0])
+        else:
+            image = raw_images[image_path]
+            bayer_mask = bayer_masks[image_path]
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height, mask=bayer_mask)
         cam_infos.append(cam_info)
@@ -142,7 +153,7 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, resolution, opt, llffhold=8):
+def readColmapSceneInfo(path, images, eval, resolution, opt, avg=False, llffhold=8):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -166,7 +177,7 @@ def readColmapSceneInfo(path, images, eval, resolution, opt, llffhold=8):
 
 
     reading_dir = "images" if images == None else images
-    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), raw_images=raw_images, bayer_masks=bayer_masks)
+    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), raw_images=raw_images, bayer_masks=bayer_masks, avg=avg)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     if eval:
