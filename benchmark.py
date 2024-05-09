@@ -33,7 +33,7 @@ def format_train_args(cfg, data_path, output_path, idx):
 
     # source location (-s)
     src_path = data_path
-    src_path += ('\colmap_post' if cfg_init == 'rgb' else '\\colmap_raw')
+    src_path += ('\colmap_rgb' if cfg_init == 'rgb' else '\\colmap_raw')
     train_args.append('-s')
     train_args.append(src_path)
 
@@ -49,6 +49,8 @@ def format_train_args(cfg, data_path, output_path, idx):
         model_path += '\\rgb'
     elif cfg_img == 'bayer':
         model_path += '\\bayer'
+        train_args.append('--resolution')
+        train_args.append('1')
     else:
         model_path += '\\raw'
     model_path += '\\' + cfg_init + '-init'

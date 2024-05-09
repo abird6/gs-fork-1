@@ -53,7 +53,7 @@ class ModelParams(ParamGroup):
         self._resolution = -1
         self._white_background = False
         self.data_device = "cuda"
-        self.eval = False
+        self.eval = True
         self.loss_type = 0
         self.avg_frames = 0
         super().__init__(parser, "Loading Parameters", sentinel)
@@ -91,6 +91,7 @@ class OptimizationParams(ParamGroup):
         self.min_opacity_thresh = 0.005
         self.huber_delta_thresh = 0.0002
         self.huber_weight = 0.8
+        self.wsmse_weight = 0.5
         self.random_background = False
         super().__init__(parser, "Optimization Parameters")
 

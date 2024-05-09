@@ -236,9 +236,6 @@ if __name__ == "__main__":
 
     if args.test_interval != 0:
         args.test_iterations = list(range(args.test_interval, args.iterations + args.test_interval, args.test_interval))
-
-    if args.densification_interval == 'ds_size':
-        print("DS_SIZE")
     
     print("Optimizing " + args.model_path)
 

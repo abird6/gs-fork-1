@@ -72,12 +72,13 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
 ''' RawSplats Loss Utils'''
 
 
+
 def huber_loss(render, gt, delta, weight):
     l1_err = torch.abs(render - gt)
+    quad_loss = 0.5 * (l1_err ** 2)
     linear_loss = delta * (l1_err - 0.5 * delta)
-
-    weighted_quad_loss = linear_loss * weight
-    weighted_linear_loss = linear_loss * ((1 - weight) * delta)
+    weighted_quad_loss = quad_loss * weight
+    weighted_linear_loss = linear_loss * weight
     loss = (torch.where(l1_err <= delta, weighted_quad_loss, weighted_linear_loss)).mean()
     return loss
 
@@ -148,10 +149,10 @@ def loss_fn(render, gt, bayer_mask, lp, opt, iteration):
         loss = (1.0 - opt.lambda_dssim) * (Ll1.mean()) + opt.lambda_dssim * (1.0 - ssim(render, gt)) + (1.0 - opt.lambda_dssim) * ((bayer_mask * (Ll2 * (scaling_grad**2))).mean())
 
     elif lp.loss_type == 11: # gamma correction loss
-        loss = ((l1_loss(render, gt) / (torch.abs(render.detach() + gt) + 1e-7))**(1/1.5)).mean()
+        loss = ((l1_loss(render, gt) / (torch.abs(render.detach() + gt) + 1e-7))**(1/3)).mean()
 
     elif lp.loss_type == 12: # gamma correction loss w/ ssim
-        loss = ((1.0 - opt.lambda_dssim) * ((l1_loss(render, gt) / (torch.abs(render.detach() + gt) + 1e-7))**(1/2.2)).mean()) + (opt.lambda_dssim * (1.0 - ssim(render, gt)))
+        loss = ((1.0 - opt.lambda_dssim) * ((l1_loss(render, gt) / (torch.abs(render.detach() + gt) + 1e-7))**(1/1.5)).mean()) + (opt.lambda_dssim * (1.0 - ssim(render, gt)))
 
     elif lp.loss_type == 13: # L + gamma correction loss + ssim
         loss = (1.0 - opt.lambda_dssim) * l1_loss(render, gt).mean() + opt.lambda_dssim * (1.0 - ssim(render, gt)) + opt.lambda_dssim * ((l1_loss(render, gt) / (torch.abs(render.detach() + gt) + 1e-7))**(1/2.2)).mean()
@@ -162,6 +163,11 @@ def loss_fn(render, gt, bayer_mask, lp, opt, iteration):
         else:
             Ll1 = l1_loss(render, gt)
             loss = (1.0 - opt.lambda_dssim) * Ll1.mean() + opt.lambda_dssim * (1.0 - ssim(render, gt))
+
+    elif lp.loss_type == 15:
+        Ll1 = l1_loss(render, gt)
+        loss = (((torch.abs(render + gt)) / (l1_loss(render.detach(), gt) + 1e-7))**(0.002)).mean()
+
 
     else: # original 3DGS loss
         Ll1 = l1_loss(render, gt)

@@ -15,6 +15,7 @@ from arguments import ModelParams, PipelineParams, OptimizationParams, get_combi
 from gaussian_renderer import GaussianModel
 import cv2
 import numpy as np
+import time
 
 
 def linear_to_srgb(linear, eps=None):
@@ -87,8 +88,30 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         cv2.imshow('gt', gt_post)
         if cv2.waitKey(0) & 0xFF == ord('q'):
             cv2.destroyAllWindows()
+
+
+def render_image(model_path, name, iteration, views, gaussians, pipeline, background, metadata = None, img_idx = 0):
+    rendered_img = render(views[img_idx], gaussians, pipeline, background)["render"].detach().cpu().permute(1, 2, 0).numpy()
+    start_time = time.time()
+
+    if metadata is not None:
+        blackLevel = metadata['BlackLevel'].reshape(-1, 1, 1)
+        whiteLevel = metadata['WhiteLevel'].reshape(-1, 1, 1)
+        img = post_process(rendered_img, blackLevel[img_idx], whiteLevel[img_idx], metadata['exposure'], metadata['cam2rgb'][img_idx])
+    else:
+        img = rendered_img
+
+    end_time = time.time()
+    print(f"Post-Processing took {end_time - start_time} seconds")
+
+    # write to png file
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    cv2.imwrite(f'{model_path}/{name}_render_{img_idx}.png', img)
+
+
+
                
-def render_sets(dataset : ModelParams, opt : OptimizationParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, img_idx : int):
+def render_sets(dataset : ModelParams, opt : OptimizationParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, img_idx : int, single_render : bool, test : bool):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
         scene = Scene(dataset, gaussians, opt, load_iteration=iteration, shuffle=False)
@@ -96,11 +119,17 @@ def render_sets(dataset : ModelParams, opt : OptimizationParams, iteration : int
         bg_color = [1,1,1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
-        if not skip_train:
-             render_set(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, scene.metadata, img_idx)
+        if single_render:
+            if test:
+                render_image(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, scene.metadata, img_idx)
+            else:
+                render_image(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, scene.metadata, img_idx)
+        else:
+            if not skip_train:
+                render_set(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, scene.metadata, img_idx)
 
-        if not skip_test:
-             render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, scene.metadata, img_idx)
+            if not skip_test:
+                render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, scene.metadata, img_idx)
 
 if __name__ == "__main__":
     # Set up command line argument parser
@@ -113,10 +142,12 @@ if __name__ == "__main__":
     parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--img", default=0, type=int)
+    parser.add_argument("--single_render", default=0, type=int)
+    parser.add_argument("--test", default=0, type=int)
     args = get_combined_args(parser)
     print("Rendering " + args.model_path)
 
     # Initialize system state (RNG)
     safe_state(args.quiet)
 
-    render_sets(model.extract(args), opt.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.img)
+    render_sets(model.extract(args), opt.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.img, args.single_render==1, args.test==1)
