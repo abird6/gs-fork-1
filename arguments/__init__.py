@@ -53,7 +53,8 @@ class ModelParams(ParamGroup):
         self._resolution = -1
         self._white_background = False
         self.data_device = "cuda"
-        self.eval = False
+        self.eval = True
+        self.loss_type = 2
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
@@ -87,6 +88,8 @@ class OptimizationParams(ParamGroup):
         self.densify_until_iter = 15_000
         self.densify_grad_threshold = 0.0002
         self.min_opacity_thresh = 0.005
+        self.huber_delta_thresh = 0.0002
+        self.huber_weight = 0.8
         self.random_background = False
 
         # Rawsplat params
